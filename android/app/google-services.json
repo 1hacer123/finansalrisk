@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "47581295286",
+    "project_id": "finansal-yatirim",
+    "storage_bucket": "finansal-yatirim.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:47581295286:android:d9b68209d6f034d429ac17",
+        "android_client_info": {
+          "package_name": "com.example.finansa_yatirim"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC2b3L-KdUYuISfMt90z0HRu7FwgyzJoVs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,26 @@
+name: finansa_yatirim
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Firebase ve ikon paketlerini buraya tek sefer yazıyoruz
+  firebase_core: ^3.4.0
+  firebase_auth: ^5.1.2
+  cloud_firestore: ^5.4.0
+  cupertino_icons: ^1.0.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
