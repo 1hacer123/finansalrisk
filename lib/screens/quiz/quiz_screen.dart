@@ -1,3 +1,4 @@
+//quiz_screen.dart
 import 'package:flutter/material.dart';
 import '../../core/constants.dart';
 import '../../models/question_model.dart';
@@ -5,10 +6,17 @@ import '../../services/firebase_service.dart';
 import 'question_widget.dart';
 import '../../widgets/navigation_button.dart';
 import '../results/result_screen.dart';
-import '../../models/risk_profile_model.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import '../../models/risk_result.dart';
+import '../../services/risk_api_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
+import 'package:finansa_yatirim/screens/auth/login_screen.dart';
 class QuizScreen extends StatefulWidget {
   final bool isBeginner;
+
   const QuizScreen({super.key, required this.isBeginner});
 
   @override
@@ -28,9 +36,52 @@ class _QuizScreenState extends State<QuizScreen> {
   @override
   void initState() {
     super.initState();
+    _printAllQuestions(); // GEÇİCİ
     _loadInitialData();
   }
+  Future<void> _checkIfAlreadyCompleted() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
 
+    final doc = await FirebaseFirestore.instance
+        .collection('risk_profiles')
+        .doc(user.uid)
+        .get();
+
+    if (doc.exists && mounted) {
+      final result = RiskResult.fromJson(doc.data()!);
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ResultScreen(profile: result),
+        ),
+      );
+    }
+  }
+
+  Future<void> _printAllQuestions() async {
+    print("=== SORU PRINT BAŞLIYOR ===");
+    try {
+      final snapshot = await FirebaseFirestore.instance.collection('sorular').get();
+      print("=== TOPLAM SORU: ${snapshot.docs.length} ===");
+
+      // Hepsini gruplar halinde yazdır (10'ar 10'ar)
+      final docs = snapshot.docs;
+      docs.sort((a, b) => (a['sira'] as int).compareTo(b['sira'] as int));
+
+      for (int i = 0; i < docs.length; i += 10) {
+        final chunk = docs.sublist(i, i + 10 > docs.length ? docs.length : i + 10);
+        final text = chunk.map((doc) =>
+        "SIRA:${doc['sira']}|ID:${doc.id}|METIN:${(doc['soru_metni'] as String).substring(0, 30)}"
+        ).join("\n");
+        print("--- GRUP ${i~/10 + 1} ---\n$text");
+      }
+      print("=== BİTTİ ===");
+    } catch (e) {
+      print("HATA: $e");
+    }
+  }
   // Verileri ilk kez çekme
   Future<void> _loadInitialData() async {
     try {
@@ -47,16 +98,118 @@ class _QuizScreenState extends State<QuizScreen> {
       print("Yükleme hatası: $e");
     }
   }
+  Future<void> _submitTestResults() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+      return;
+    }
 
+    final String userId = user.uid;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // 1. Firebase kayıt (aynı kalabilir)
+      await FirebaseFirestore.instance.collection('responses').doc(userId).set({
+        "responses": _userAnswers,
+        "tamamlanmaTarihi": FieldValue.serverTimestamp(),
+      });
+
+      // 2. PYTHON API (YENİ SİSTEM)
+      final result = await RiskApiService()
+          .predict(Map<String, dynamic>.from(_userAnswers));
+
+      final profileData = {
+        "risk": result.risk,
+        "label": result.label,
+        "segment": result.segment,
+        "probabilities": result.probabilities,
+        "createdAt": FieldValue.serverTimestamp(),
+      };
+
+      await FirebaseFirestore.instance
+          .collection('risk_profiles')
+          .doc(userId)
+          .set(profileData);
+
+      // Geçmiş analizler alt koleksiyonuna da kaydet
+      await FirebaseFirestore.instance
+          .collection('risk_profiles')
+          .doc(userId)
+          .collection('history')
+          .add(profileData);
+
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ResultScreen(profile: result),
+          ),
+        );
+      }
+
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            backgroundColor: const Color(0xFF1E222D),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Row(
+              children: [
+                Icon(Icons.cloud_off_rounded, color: Colors.redAccent, size: 28),
+                SizedBox(width: 10),
+                Text(
+                  "Bağlantı Hatası",
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20),
+                ),
+              ],
+            ),
+            content: const Text(
+              "Yatırım risk analizi sunucusuna bağlanılamadı. Lütfen internet bağlantınızı ve backend (FastAPI) servisinin çalıştığını kontrol edip tekrar deneyin.",
+              style: TextStyle(color: Colors.white70, fontSize: 15, height: 1.4),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text("İptal", style: TextStyle(color: Colors.white38)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kPrimaryColor,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _submitTestResults();
+                },
+                child: const Text("Tekrar Dene"),
+              ),
+            ],
+          ),
+        );
+      }
+      print("Hata: $e");
+    }
+  }
   void _answerQuestion(String questionId, int selectedOptionIndex) {
     setState(() {
       _userAnswers[questionId] = selectedOptionIndex;
 
       final currentQuestion = _visibleQuestions[_currentQuestionIndex];
 
-      // KRİTİK NOKTA: 11. soru cevaplandığında yolu ayır
-      if (currentQuestion.sira == 11) {
-        // Senin mantığın: 0-2 yıl seçeneği (index 0 ve 1) ACEMİ, 3+ yıl (index 2) DENEYİMLİ
+      if (currentQuestion.id == _visibleQuestions[10].id){
         bool userIsAcemi = (selectedOptionIndex == 0 || selectedOptionIndex == 1);
         _updateQuestionFlow(userIsAcemi);
       }
@@ -86,6 +239,11 @@ class _QuizScreenState extends State<QuizScreen> {
 
     setState(() {
       _visibleQuestions = newFlow;
+
+      // index güvenliği
+      if (_currentQuestionIndex >= _visibleQuestions.length) {
+        _currentQuestionIndex = _visibleQuestions.length - 1;
+      }
     });
   }
 
@@ -179,8 +337,8 @@ class _QuizScreenState extends State<QuizScreen> {
     // 3. ASIL TEST EKRANI (Buradan sonrası senin mevcut kodun)
     final currentQuestion = _visibleQuestions[_currentQuestionIndex];
     final totalQuestions = _visibleQuestions.length;
-    final bool isAnswered = _userAnswers.containsKey(currentQuestion.id);
-
+    final int? selected = _userAnswers[currentQuestion.id];
+    final bool isAnswered = selected != null;
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -202,11 +360,16 @@ class _QuizScreenState extends State<QuizScreen> {
                   child: QuestionWidget(
                     question: currentQuestion,
                     selectedOptionIndex: _userAnswers[currentQuestion.id],
-                    onOptionSelected: (index) => _answerQuestion(currentQuestion.id, index),
+                    onOptionSelected: (index) {
+                      _answerQuestion(currentQuestion.id, index);
+                    },
                   ),
                 ),
               ),
+              // ...
+// build metodunun sonlarına doğru:
               _buildNavigationButtons(isAnswered, totalQuestions, _visibleQuestions),
+// ...,
             ],
           ),
         ),
@@ -269,8 +432,8 @@ class _QuizScreenState extends State<QuizScreen> {
               onPressed: isAnswered
                   ? () {
                 if (isLast) {
-                  // Sonuç ekranına git (Risk puanı hesaplamasını sonra ekleyeceğiz)
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => ResultScreen(profile: mockResult)));
+                  // BURADA fonksiyonumuzu çağırıyoruz
+                  _submitTestResults();
                 } else {
                   setState(() => _currentQuestionIndex++);
                 }

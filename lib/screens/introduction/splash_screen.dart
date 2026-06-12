@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
-import '../main_wrapper.dart'; // ÖNEMLİ: MainWrapper dosyanın yolunu kontrol et
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../main_wrapper.dart';
+import '../auth/login_screen.dart';
+import '../results/result_screen.dart';
+import '../../models/risk_result.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -25,14 +30,49 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     _controller.forward();
 
     // 3 saniye sonra navigasyon başlasın
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        // BURASI DEĞİŞTİ: Artık doğrudan MainWrapper'a gidiyoruz.
-        // MainWrapper kendi içinde zaten IntroductionScreen'i açacak ve altına navbar'ı koyacak.
+    Future.delayed(const Duration(seconds: 3), () async {
+      if (!mounted) return;
+
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        // Oturum açılmamışsa -> LoginScreen
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const MainWrapper()),
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
         );
+      } else {
+        try {
+          // Test sonucu var mı kontrol et
+          final doc = await FirebaseFirestore.instance
+              .collection('risk_profiles')
+              .doc(user.uid)
+              .get();
+
+          if (!mounted) return;
+
+          if (doc.exists) {
+            // Test çözülmüş -> Doğrudan ResultScreen
+            final riskProfile = RiskResult.fromJson(doc.data()!);
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => ResultScreen(profile: riskProfile)),
+            );
+          } else {
+            // Test çözülmemiş -> MainWrapper (Anket girişi)
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const MainWrapper()),
+            );
+          }
+        } catch (e) {
+          // Hata durumunda varsayılan olarak MainWrapper'a git
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const MainWrapper()),
+            );
+          }
+        }
       }
     });
   }

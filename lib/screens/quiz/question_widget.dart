@@ -1,3 +1,4 @@
+//question_widget.dart
 import 'package:flutter/material.dart';
 import '../../core/constants.dart';
 import '../../models/question_model.dart';
@@ -13,17 +14,15 @@ class QuestionWidget extends StatelessWidget {
     required this.selectedOptionIndex,
     required this.onOptionSelected,
   });
-
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        // Daha derin bir siyah-lacivert geçişi
         color: const Color(0xFF1E222D),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.05)), // Çok ince bir çerçeve
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.4),
@@ -35,7 +34,6 @@ class QuestionWidget extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Soru Başlığı ve İkon
           Row(
             children: [
               Icon(Icons.analytics_outlined, color: kPrimaryColor, size: 20),
@@ -51,7 +49,9 @@ class QuestionWidget extends StatelessWidget {
               ),
             ],
           ),
+
           const SizedBox(height: 16),
+
           Text(
             question.text,
             style: const TextStyle(
@@ -61,8 +61,9 @@ class QuestionWidget extends StatelessWidget {
               height: 1.3,
             ),
           ),
+
           const SizedBox(height: 32),
-          // Seçenekler
+
           ...question.options.asMap().entries.map((entry) {
             final int index = entry.key;
             final String option = entry.value;
@@ -89,11 +90,9 @@ class QuestionWidget extends StatelessWidget {
         duration: const Duration(milliseconds: 300),
         width: double.infinity,
         decoration: BoxDecoration(
-          color: const Color(0xFF1E222D).withOpacity(0.9),// hafif saydam
+          color: const Color(0xFF1E222D).withOpacity(0.9),
           borderRadius: BorderRadius.circular(24),
-          // Seçilince parlayan (neon) efekti
-          border: Border.all(color: kPrimaryColor.withOpacity(0.2),width:1.5),
-
+          border: Border.all(color: kPrimaryColor.withOpacity(0.2), width: 1.5),
           boxShadow: isSelected
               ? [
             BoxShadow(
@@ -106,7 +105,10 @@ class QuestionWidget extends StatelessWidget {
               : [],
         ),
         child: InkWell(
-          onTap: () => onOptionSelected(optionIndex),
+          onTap: () {
+            onOptionSelected(optionIndex);
+
+          },
           borderRadius: BorderRadius.circular(16),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
@@ -123,7 +125,6 @@ class QuestionWidget extends StatelessWidget {
                     ),
                   ),
                 ),
-                // Seçilen şıkkın yanına ufak bir check işareti
                 if (isSelected)
                   const Icon(Icons.check_circle, color: Colors.white, size: 20),
               ],
